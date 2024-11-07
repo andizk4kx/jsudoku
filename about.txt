@@ -1,0 +1,36 @@
+sudoku version 1.00
+29-11-2007
+
+
+The program uses Andrea Cini's cute EuwinGUI. I wrote it for my wife, she is a sudoku addict. It was supposed to be her Christmas present last year, but she has never touched it - she prefers paper and a pencil...
+
+Sudoku puzzles are reasonably common, I am not going to lecture you how to deal with them. Simple instructions as they appear daily in my local newspaper should be enough:  there is only one rule to completing a sudoku: each 3x3 box, as well as each row and each column, must contain all the numbers 1 to 9. If you need more guidance, there are plenty of references on the net.
+
+
+Just a few notes how to use the program:
+
+The top four buttons allow you to select a random puzzle of suitable difficulty from an enormous built-in database.
+
+Initially, the program is in a manual mode, which means the candidates for each cell have to be selected by clicking the little gray digits. Only then the cell's value can be set by clicking the correct highlighted candidate. In the 'auto' mode all possible candidates are determined for you. Irrespective of the mode, the program will not allow you to enter incorrect candidates. By the way, the original values ('seeds') are always shown in yellow, and the discovered ones in white.
+
+You can also enter your own puzzles, copies from the internet, from a puzzle book or a newspaper. Just press the 'enter' button to start, and press it again to conclude your entry. If you make a mistake, simply click the wrong cell and it will revert to the original grid of the gray candidates.
+Note: the program may crash if you attempt to enter a puzzle without a unique solution!
+
+The 'solve' button  just displays the solution, which, internally, is found as soon as the puzzle is selected, loaded or entered. It takes only a tiny fraction of a second!
+
+You can also save your puzzle. ".s" extension will be automatically added to your chosen file name. It is also ok to select an existing file name. An unlimited number of puzzles can be stored in each file. The last puzzle is simply appended to the file in a binary form, row by row, as 81 bytes.
+
+The 'load' button retrieves only the *last* puzzle from a file with multiple entries.
+
+The bottom white buttons are all exclusive toggles. When one of the first nine is selected, the cells that include the corresponding candidate will be highlighted with orange background. The 'one dot' button will highlight singletons, cells with just one candidate. And similarly, the 'two dot' button will highlight all doubletons.
+
+Generally, if an incorrect operation is attempted, the buzzer will sound and a brief error message will appear in the bottom line.
+
+The built-in clock reminds you just how much time you have already wasted!
+
+
+Bug reports and suggestions how to improve the program will be very much appreciated.
+
+jiri
+
+j.babor@gmail.com

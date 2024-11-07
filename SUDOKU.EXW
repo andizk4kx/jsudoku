@@ -1,0 +1,756 @@
+--  soduku.exw
+--  jiri babor
+--  j.babor@gmail.com
+--  16-01-2007
+
+include ewguties.ew
+include get.e
+include file.e
+include misc.e
+
+constant ORANGE = #3080FF
+constant verdana11 = NewFont("verdana", 10, False, False, False)
+constant verdana11b = NewFont("verdana", 11, True, False, False)
+constant verdana28 = NewFont("verdana", 28, False, False, False)
+constant verdana64 = NewFont("verdana", 64, True, False, False)
+
+CenterWindow("jiri's sudoku"&sprintf(" %d bit",machine_bits()), 528, 508, NoMaxWin)
+
+constant easyButton = Control(Button, "easy", 442, 4, 76, 34)
+constant moderateButton = Control(Button, "moderate", 442, 40, 76, 34)
+constant toughButton = Control(Button, "tough", 442, 76, 75, 34)
+constant diabolicalButton = Control(Button, "diabolical", 442, 112, 76, 34)
+constant autoButton = Control(PushButton, "auto", 442, 156, 76, 34)
+constant enterButton = Control(PushButton, "enter", 442, 192, 76, 34)
+constant solveButton = Control(Button, "solve", 442, 228, 76, 34)
+constant restartButton = Control(Button, "restart", 442, 264, 76, 34)
+constant loadButton = Control(Button, "load", 442, 300, 76, 34)
+constant saveButton = Control(Button, "save", 442, 336, 76, 34)
+constant printButton = Control(Button, "print", 442, 372, 76, 34)
+constant aboutButton = Control(Button, "about", 442, 408, 76, 34)
+constant exitButton = Control(Button, "exit", 442, 444, 76, 34)
+
+sequence candidates,cc,cells,manual,message,seeds,solution
+integer col,dx,dy,hiliteFlag,k,m,n,ns,row,seeded,setCount,sex,tries
+
+function odd(integer i)                 -- boolean
+    return and_bits(1,i)
+end function
+
+function shuffle(sequence s)            -- random shuffle of sequence
+    object temp
+    integer r
+
+    for i = length(s) to 2 by -1 do
+        r = rand(i)
+        temp = s[r]
+        s[r] = s[i]
+        s[i] = temp
+    end for
+
+    return s
+end function
+
+function Mangle(sequence s)
+    sequence u,v
+    integer x
+
+    -- shuffle seeds
+    u = {1,2,3,4,5,6,7,8,9}
+    u = shuffle(u)
+    for r = 1 to 9 do
+        for c = 1 to 9 do
+            x = s[r][c]
+            if x then
+                s[r][c] = u[x]
+            end if
+        end for
+    end for
+
+    -- shuffle rows
+    u = {1,2,3,4,5,6,7,8,9}
+    u[1..3] = shuffle(u[1..3])
+    u[7] = 9 - u[3] + 1
+    u[8] = 9 - u[2] + 1
+    u[9] = 9 - u[1] + 1
+    if rand(2)-1 then                   -- random bool
+        u[4] = 6
+        u[6] = 4
+    end if
+    v = s
+    for r = 1 to 9 do
+        s[r] = v[u[r]]
+    end for
+    if rand(2)-1 then
+        -- turn upside down
+        v = s
+        for r = 1 to 9 do
+            s[r] = v[9-r+1]
+        end for
+    end if
+
+    -- exchange rows and columns
+    v = s
+    for r = 1 to 9 do
+        for c = 1 to 9 do
+            s[r][c] = v[c][r]
+        end for
+    end for
+
+    -- shuffle columns
+    u = {1,2,3,4,5,6,7,8,9}
+    u[1..3] = shuffle(u[1..3])
+    u[7] = 9 - u[3] + 1
+    u[8] = 9 - u[2] + 1
+    u[9] = 9 - u[1] + 1
+    if rand(2)-1 then                   -- random bool
+        u[4] = 6
+        u[6] = 4
+    end if
+    v = s
+    for r = 1 to 9 do
+        s[r] = v[u[r]]
+    end for
+    if rand(2)-1 then
+        -- turn upside down
+        v = s
+        for r = 1 to 9 do
+            s[r] = v[9-r+1]
+        end for
+    end if
+
+    if rand(2)-1 then
+        -- exchange rows and columns again
+        v = s
+        for r = 1 to 9 do
+            for c = 1 to 9 do
+                s[r][c] = v[c][r]
+            end for
+        end for
+    end if
+
+    return s
+end function -- Mangle
+
+procedure pane(integer x,integer y,integer w,integer h)
+    DrawPolygon({x,y, x+w-1,y, x+w-1,y+h-1, x,y+h-1},True)
+end procedure
+
+procedure drawGrid()
+    SetPenColor(CL_DKGRAY)
+    DrawMultiLine({{4,51,434,51},{4,99,434,99},{4,195,434,195},{4,243,434,243},{4,339,434,339},{4,387,434,387}})
+    DrawMultiLine({{51,4,51,434},{99,4,99,434},{195,4,195,434},{243,4,243,434},{339,4,339,434},{387,4,387,434}})
+    SetPenColor(CL_WHITE)
+    DrawMultiLine({{4,147,434,147},{4,291,434,291},{147,4,147,434},{291,4,291,434}})
+end procedure -- drawGrid
+
+procedure drawCell(integer row, integer col)
+    integer b,n,x,y
+
+    x = (col-1)*48
+    y = (row-1)*48
+    n = cells[row][col]
+    b = floor((col-1)/3)+1 + floor((row-1)/3)*3   -- block number
+    if not n and hiliteFlag = 10 and cc[row][col] = 1 then SetPenColor(ORANGE)
+    elsif not n and hiliteFlag = 11 and cc[row][col] = 2 then SetPenColor(ORANGE)
+    elsif not n and hiliteFlag and hiliteFlag < 10  and (manual[row][col][hiliteFlag] or (IsChecked(autoButton) and candidates[row][col][hiliteFlag]))then
+        SetPenColor(ORANGE)
+    elsif odd(b) then
+        SetPenColor(CL_BLACK)
+    else
+        SetPenColor(CL_DKBLUE)
+    end if
+
+    pane(x+4,y+4,47,47)                 -- erase
+
+    if n then
+        if seeds[row][col] then  SetPenColor(CL_YELLOW) else SetPenColor(CL_WHITE) end if
+        SetDrawingFont(verdana28)
+        DrawString(x+18, y+12, {n+48})
+    elsif IsChecked(enterButton) then     -- seeds being chosen: show miniatures
+        SetDrawingFont(verdana11)
+        SetPenColor(CL_DKGRAY)
+        for r = 1 to 3 do
+            for c = 1 to 3 do
+                DrawString(x+9+16*(c-1), y+6+16*(r-1), {48+c+3*(r-1)})
+            end for
+        end for
+    elsif seeded then
+        if IsChecked(autoButton) then
+            SetDrawingFont(verdana11)
+            if hiliteFlag and hiliteFlag < 10 and candidates[row][col][hiliteFlag] then
+                SetPenColor(CL_GRAY)
+            elsif hiliteFlag = 10 and cc[row][col] = 1 then
+                SetPenColor(CL_GRAY)
+            elsif hiliteFlag = 11 and cc[row][col] = 2 then
+                SetPenColor(CL_GRAY)
+            else
+                SetPenColor(CL_DKGRAY)
+            end if
+            for r = 1 to 3 do
+                for c = 1 to 3 do
+                    m = c + 3*(r-1)
+                    if candidates[row][col][m] then
+                        DrawString(x+9+16*(c-1), y+6+16*(r-1), {48+m})
+                    end if
+                end for
+            end for
+        else                                -- manual
+            for r = 1 to 3 do
+                for c = 1 to 3 do
+                    m = c + 3*(r-1)
+                    if manual[row][col][m] then
+                        SetDrawingFont(verdana11b)
+                        SetPenColor(CL_WHITE)
+                    else
+                        SetDrawingFont(verdana11)
+                        SetPenColor(CL_DKGRAY)
+                    end if
+                    DrawString(x+9+16*(c-1), y+6+16*(r-1), {48+m})
+                end for
+            end for
+        end if
+    end if
+end procedure -- drawCell
+
+procedure drawCells()
+    for i = 1 to 9 do
+        for j = 1 to 9 do
+            drawCell(i,j)
+        end for
+    end for
+end procedure -- drawCells
+
+procedure drawHiliteButton(integer n)
+    if n = hiliteFlag then SetPenColor(ORANGE) else SetPenColor(CL_WHITE) end if
+    if n <= 9 then
+        pane(4+(n-1)*39,440,36,17)
+        SetPenColor(CL_BLACK)
+        SetDrawingFont(verdana11)
+        DrawString(17+(n-1)*39,442,{n+48})
+    elsif n = 10 then                   -- one dot: singletons
+        pane(355,440,39,17)
+        SetPenColor(CL_BLACK)
+        SetPenSize(6)
+        DrawLine(375,449,375,449)
+        SetPenSize(1)
+    elsif n = 11 then                   -- two dots: doubletons
+        pane(397,440,39,17)
+        SetPenColor(CL_BLACK)
+        SetPenSize(6)
+        DrawMultiLine({{408,449,408,449},{422,449,422,449}})
+        SetPenSize(1)
+    end if
+end procedure -- drawHiliteButton
+
+procedure notify(sequence s)
+    message = s                         -- save message for redraw
+    SetPenColor(CL_DKGRAY)              -- notify strip color
+    pane(4,460,367,18)
+    SetDrawingFont(verdana11)
+    SetPenColor(CL_WHITE)               -- text color
+    DrawString(10,462,message)
+end procedure -- notify
+
+function valid(sequence s, integer n, integer r, integer c)
+    integer u,v
+
+    tries += 1
+    if find(n, s[r]) then return False end if
+    for i = 1 to 9 do
+        if s[i][c] = n  then return False end if
+    end for
+    u = 3*floor((r-1)/3)
+    v = 3*floor((c-1)/3)
+    for i = 1 to 3 do
+        for j = 1 to 3 do
+            if s[i+u][j+v] = n then return False end if
+        end for
+    end for
+    return True
+end function
+
+procedure findCandidates()
+    sequence cols,blks
+
+    cols = repeat(repeat(0,9),9)
+    cols = repeat(repeat(0,9),9)
+    blks = repeat(repeat(0,9),9)
+    candidates = repeat(repeat(repeat(1,9),9),9)
+    for i = 1 to 9 do
+        for j = 1 to 9 do
+            cols[i][j] = cells[j][i]
+            k = floor((j-1)/3)+1 + floor((i-1)/3)*3
+            m = remainder(j-1,3)+1 + remainder(i-1,3)*3
+            blks[k][m] = cells[i][j]
+        end for
+    end for
+    for row = 1 to 9 do
+        for col = 1 to 9 do
+            for m = 1 to 9 do
+                n = floor((col-1)/3)+1 + floor((row-1)/3)*3
+                candidates[row][col][m] = not(find(m,cells[row]) or find(m,cols[col]) or find(m,blks[n]))
+            end for
+        end for
+    end for
+end procedure -- findCandidates
+
+procedure getCandidatesCount()
+    integer n
+
+    cc = repeat(repeat(0, 9), 9)
+    if IsChecked(autoButton) then
+        for r = 1 to 9 do
+            for c = 1 to 9 do
+                n = 0
+                for i = 1 to 9 do
+                    if candidates[r][c][i] then n += 1 end if
+                end for
+                cc[r][c] = n
+            end for
+        end for
+    else
+        for r = 1 to 9 do
+            for c = 1 to 9 do
+                n = 0
+                for i = 1 to 9 do
+                    if manual[r][c][i] then n += 1 end if
+                end for
+                cc[r][c] = n
+            end for
+        end for
+    end if
+end procedure
+
+procedure Solve(sequence s)
+    for r = 1 to 9 do
+        for c = 1 to 9 do
+            if s[r][c] = 0 then
+                for k = 1 to 9 do
+                    if valid(s,k,r,c) then
+                        s[r][c] = k
+                        Solve(s)
+                    end if
+                end for
+                return
+            end if
+        end for
+    end for
+    solution = s
+    ns += 1
+end procedure
+
+procedure solve()
+    ns = 0
+    tries = 0
+    Solve(cells)
+    if ns = 0 then
+        notify("Puzzle has no solution!")
+        PlaySnd("ding.wav")
+    elsif ns > 1 then                    -- multiple solutions
+        notify("The puzzle has " & sprint(ns) & " solutions!")
+        PlaySnd("ding.wav")
+    end if
+end procedure
+
+procedure drawClock()
+    sequence t
+    integer h,m,s
+
+    SetDrawingControl(WinHwnd)
+    s = remainder(sex,60)
+    m = remainder(floor(sex/60),60)
+    h = floor(sex/3600)
+    SetPenColor(CL_BLACK)               -- background color
+    pane(374,460,62,18)
+    SetDrawingFont(verdana11)
+    SetPenColor(CL_WHITE)               -- text color
+    t = sprintf("%02d:%02d:%02d", {h,m,s})
+    DrawString(380,462,t)
+end procedure -- drawClock
+
+procedure redraw()
+    drawGrid()
+    drawCells()
+    for i = 1 to 11 do
+        drawHiliteButton(i)
+    end for
+    notify(message)
+    drawClock()
+end procedure -- redraw
+
+procedure initRun()
+    cells = repeat(repeat(0,9),9)       -- cell numbers
+    seeds = repeat(repeat(0,9),9)
+    manual = repeat(repeat(repeat(0,9),9),10)   -- manually selected candidates
+    candidates = repeat(repeat(repeat(1,9),9),10) -- automatically calculated candidates
+    hiliteFlag = False
+    seeded = False
+    SetCheck(enterButton,False)         -- release enter button
+    SetCheck(autoButton,False)          -- release candidates button
+    SetEnable(saveButton,False)
+    SetEnable(autoButton,False)
+    SetEnable(solveButton,False)
+    SetEnable(printButton,False)
+    SetEnable(restartButton,False)
+
+    sex = 0
+    setCount = 0
+end procedure -- initRun
+
+procedure restart()
+    cells = seeds
+    manual = repeat(repeat(repeat(0,9),9),10)   -- manually selected candidates
+    candidates = repeat(repeat(repeat(1,9),9),10) -- automatically calculated candidates
+    findCandidates()
+    getCandidatesCount()
+    hiliteFlag = False
+    seeded = True
+    SetCheck(enterButton,False)         -- release 'enter' button
+    SetCheck(autoButton,False)          -- release 'candidates' button
+    message = "Let's start again..."
+    sex = 0
+    setCount = 0
+    for r = 1 to 9 do
+        for c = 1 to 9 do
+            if cells[r][c] then setCount += 1 end if
+        end for
+    end for
+    redraw()
+end procedure -- restart
+
+procedure load()                        -- load last puzzle in file
+    sequence fileName
+    integer f,m,n
+
+    fileName = FileDlg(Open, ".s", "sudoku files  (*.s)|*.s|all files (*.*)|*.*")
+    f = open(fileName, "rb")
+    if f = -1 then
+        notify("Unable to open the input file...")
+        PlaySnd("ding.wav")
+    else
+        m = seek(f, -1)                 -- go to end of file
+        n = where(f)                    -- number of bytes in file
+        if n < 81 then
+            notify("Insufficient data in the input file...")
+            PlaySnd("ding.wav")
+        else
+            m = seek(f, n-81)
+            seeds = repeat(repeat(0,9),9)
+            setCount = 0
+            for r = 1 to 9 do
+                for c = 1 to 9 do
+                    seeds[r][c] = getc(f)
+                    if seeds[r][c] then setCount += 1 end if
+                end for
+            end for
+            cells = seeds
+            findCandidates()
+            getCandidatesCount()
+            message = fileName
+            SetCheck(enterButton, False)    -- release enter button
+            SetCheck(autoButton, False)     -- release candidates button
+            seeded = True
+            SetEnable(autoButton, True)
+            SetEnable(solveButton, True)
+            SetEnable(restartButton, True)
+            SetEnable(saveButton, True)
+            SetEnable(printButton, True)
+            manual = repeat(repeat(repeat(0,9),9),9)    -- manually selected candidates
+            if hiliteFlag then hiliteFlag = 0 end if
+            PlaySnd("chimes.wav")
+            sex = 0
+            solve()
+        end if
+        close(f)
+    end if
+end procedure -- load
+
+procedure mangle()
+    seeds = Mangle(seeds)
+    cells = seeds
+    findCandidates()
+    getCandidatesCount()
+    SetCheck(enterButton, False)        -- release enter button
+    SetCheck(autoButton, False)         -- release candidates button
+    seeded = True
+    SetEnable(autoButton, True)
+    SetEnable(solveButton, True)
+    SetEnable(restartButton, True)
+    SetEnable(saveButton, True)
+    SetEnable(printButton, True)
+    manual = repeat(repeat(repeat(0,9),9),9)    -- manually selected candidates
+    if hiliteFlag then hiliteFlag = 0 end if
+    solve()
+end procedure -- mangle
+
+procedure save()
+    sequence fileName
+    integer f
+
+    fileName = FileDlg(Save, ".s", "sudoku files  (*.s)|*.s")
+    f = open(fileName, "ab")
+    if f = -1 then
+        notify("Warning: unable to create the file...")
+        PlaySnd("ding.wav")
+    else
+        for r = 1 to 9 do
+            puts(f, seeds[r])
+        end for
+        close(f)
+        notify("File saved!")
+        PlaySnd("chimes.wav")
+    end if
+end procedure -- save
+
+procedure retrieve(sequence fileName)
+    integer f,m,n
+    atom p
+
+    f = open(fileName, "rb")
+    if f = -1 then
+        notify("Unable to open the input file...")
+        PlaySnd("ding.wav")
+    else
+        m = seek(f, -1)                 -- go to end of file
+        n = where(f)                    -- number of bytes in file
+        p = floor(n/81)
+        if n < 81 or not integer(p) then
+            notify("Insufficient or corrupted data in the input file...")
+            PlaySnd("ding.wav")
+        else
+            n = 81*(rand(p)-1)
+            m = seek(f, n)
+            seeds = repeat(repeat(0,9),9)
+            setCount = 0
+            for r = 1 to 9 do
+                for c = 1 to 9 do
+                    seeds[r][c] = getc(f)
+                    if seeds[r][c] then setCount += 1 end if
+                end for
+            end for
+            mangle()
+            redraw()
+            notify(fileName[1..$-2] & " game...")
+            PlaySnd("chimes.wav")
+        end if
+        close(f)
+    end if
+    SetRefresh(WinHwnd)
+end procedure -- retrieve
+
+procedure printPuzzle()
+    atom hcb
+    integer n,x,y
+
+    SetPenColor(CL_WHITE)               -- background of hard copy
+    hcb = NewMB(1370,1370)              -- hard copy memory buffer
+    SetDrawingMB(hcb)
+    SetPenColor(CL_BLACK)
+    SetPenSize(4)
+    DrawPolygon({10,10, 1360,10, 1360,1360, 10,1360}, False)
+    DrawMultiLine({{10,460,1360,460},{10,910,1360,910},{460,10,460,1360},{910,10,910,1360}})
+    SetPenSize(1)
+    DrawMultiLine({{10,160,1360,160},{10,310,1360,310},{10,610,1360,610},{10,760,1360,760},{10,1060,1360,1060},{10,1210,1360,1210}})
+    DrawMultiLine({{160,10,160,1360},{310,10,310,1360},{610,10,610,1360},{760,10,760,1360},{1060,10,1060,1360},{1210,10,1210,1360}})
+    y = 50
+    for r = 1 to 9 do
+        x = 60
+        for c = 1 to 9 do
+            n = cells[r][c]
+            if n then
+                if seeds[r][c] then
+                    SetPenColor(CL_RED)
+                else
+                    SetPenColor(CL_BLACK)
+                end if
+                SetDrawingFont(verdana64)
+                DrawString(x, y, {n+48})
+            end if
+            x += 150
+        end for
+        y += 150
+    end for
+    SelectPrinter(False)
+    NewDocument("hard copy")
+    PrintMB(hcb,200,200,1365,1365)
+    StartPrinting()
+end procedure -- printPuzzle
+
+
+--  main
+
+SetWinTimer(1000)
+message = "Let's play sudoku..."
+SetDrawingProc(WinHwnd, routine_id("redraw"))
+SetIcon("sudoku.ico")
+initRun()
+
+while WaitEvent() do                            -- event loop
+--  WaitEvent()
+    CloseAppOnEscape(False)
+    if Event = Time then
+        sex += 1
+        drawClock()
+    elsif Event = Click then
+        if EventOwner = WinHwnd and MouseX < 436 and MouseY < 436 then
+            if not seeded and not IsChecked(enterButton) then
+                notify("No game in progress!")
+                PlaySnd("ding.wav")
+            else
+                row = floor((MouseY-4)/48) + 1
+                col = floor((MouseX-4)/48) + 1
+                if IsChecked(enterButton) then  -- entering seeds
+                    if seeds[row][col] then     -- remove existing seed
+                        cells[row][col] = 0
+                        seeds[row][col] = 0
+                        drawCell(row,col)
+                        setCount -= 1
+                    elsif cells[row][col] = 0 then
+                        dx = remainder(MouseX-4, 48)
+                        k = floor(dx/16)+1
+                        dy = remainder(MouseY-4, 48)
+                        m = floor(dy/16)
+                        cells[row][col] = k + 3*m
+                        seeds[row][col] = k + 3*m
+                        drawCell(row,col)
+                        setCount += 1
+                    end if
+                elsif cells[row][col] then  -- remove guess
+                    if seeds[row][col] then
+                        notify("Can't remove seed!")
+                        PlaySnd("ding.wav")
+                    else
+                        cells[row][col] = 0
+                        findCandidates()
+                        getCandidatesCount()
+                        if IsChecked(autoButton) then drawCells() else drawCell(row,col) end if
+                        setCount -= 1
+                    end if
+                elsif IsChecked(autoButton) and cc[row][col] = 1 then
+                    cells[row][col] = solution[row][col]
+                    findCandidates()
+                    getCandidatesCount()
+                    drawCells()
+                    setCount += 1
+                    if setCount = 81 then
+                        notify("Congratulation!")
+                        PlaySnd("chimes.wav")
+                    end if
+                else
+                    dx = remainder(MouseX-4, 48)
+                    k = floor(dx/16)+1
+                    dy = remainder(MouseY-4,48)
+                    m = floor(dy/16)
+                    n = k+3*m
+                    if IsChecked(autoButton) then
+                        if solution[row][col] = n then
+                            cells[row][col] = n
+                            findCandidates()
+                            getCandidatesCount()
+                            drawCells()
+                            setCount += 1
+                            if setCount = 81 then
+                                notify("Congratulation!")
+                                PlaySnd("chimes.wav")
+                            end if
+                        else
+                            notify("Illegal move!")
+                            PlaySnd("ding.wav")
+                        end if
+                    elsif manual[row][col][n] then
+                        if candidates[row][col][n] then
+                            cells[row][col] = n
+                            findCandidates()
+                            getCandidatesCount()
+                            drawCell(row,col)
+                        else
+                            manual[row][col][n] = False
+                            drawCell(row,col)
+                        end if
+                    elsif not candidates[row][col][n] then
+                        notify("Illegal move!")
+                        PlaySnd("ding.wav")
+                    else
+                        manual[row][col][n] = True
+                        findCandidates()
+                        getCandidatesCount()
+                        drawCell(row,col)
+                    end if
+                end if
+            end if
+        elsif EventOwner = WinHwnd and MouseY > 440 and MouseY < 458 then   -- hilite buttons
+            n = floor((MouseX-4)/39)+1
+            if n < 1 then n = 1 elsif n > 11 then n = 11 end if
+            m = hiliteFlag
+            if m then
+                hiliteFlag = 0
+                drawHiliteButton(m)
+                if m != n then
+                    hiliteFlag = n
+                    drawHiliteButton(n)
+                end if
+            else
+                hiliteFlag = n
+                drawHiliteButton(n)
+            end if
+            drawCells()
+        elsif EventOwner = easyButton then retrieve("easy.s")
+        elsif EventOwner = moderateButton then retrieve("moderate.s")
+        elsif EventOwner = toughButton then retrieve("tough.s")
+        elsif EventOwner = diabolicalButton then retrieve("diabolical.s")
+        elsif EventOwner = enterButton then
+            if IsChecked(enterButton) then
+                initRun()
+                SetCheck(enterButton,True)
+                SetEnable(autoButton, False)
+                SetEnable(solveButton, False)
+                SetEnable(restartButton, False)
+                SetEnable(saveButton, False)
+                SetEnable(printButton, False)
+            else
+                seeded = True
+                solve()
+                SetEnable(autoButton, True)
+                SetEnable(solveButton, True)
+                SetEnable(restartButton, True)
+                SetEnable(saveButton, True)
+                SetEnable(printButton, True)
+                findCandidates()
+                getCandidatesCount()
+            end if
+            drawCells()
+        elsif EventOwner = autoButton then
+            getCandidatesCount()
+            drawCells()
+        elsif EventOwner = solveButton then
+            if not seeded then
+                notify("No game in progress!")
+                PlaySnd("ding.wav")
+            else
+                cells = solution
+                if ns = 1 then
+                    drawCells()
+                    notify("Unique solution in " & sprint(tries) & " tries.")
+                    PlaySnd("chimes.wav")
+                elsif ns = 0 then
+                    notify("Puzzle has no solution!")
+                    PlaySnd("ding.wav")
+                else                    -- multiple solutions
+                    notify("The puzzle has " & sprint(ns) & " solutions!")
+                    PlaySnd("ding.wav")
+                end if
+            end if
+        elsif EventOwner = restartButton then
+            restart()
+        elsif EventOwner = loadButton then load()
+        elsif EventOwner = saveButton then save()
+        elsif EventOwner = printButton then printPuzzle()
+        elsif EventOwner = aboutButton then
+--            RunApp("about.html", "")
+            RunApp("metapad.exe", "about.txt")
+        elsif EventOwner = exitButton then CloseApp(0)
+        end if
+    end if
+end while
+CloseApp(0)

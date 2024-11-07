@@ -1,0 +1,70 @@
+--A collection of useful utility functions and procedures for EuWinGUI - (C)2006 by Andrea Cini
+
+public include tinlib.ew
+--atom NULL=0
+
+--Creates the Main Window according to the given type and centers it on screen
+global procedure CenterWindow(sequence title, atom width, atom height, atom wintype)
+    WindowType = wintype
+{}= Window(title,floor((ScreenWidth()-width)/2),floor((ScreenHeight()-height)/2),width,height)
+end procedure
+
+--Creates a Dialog according to the given type and centers it on screen, returning its handle
+global function CenterDialog(sequence title, atom width, atom height, atom wintype)
+    WindowType = wintype
+    return Control(Dialog,title,floor((ScreenWidth()-width)/2),floor((ScreenHeight()-height)/2),width,height)
+end function
+
+
+--Creates and returns the handle of a font according to the family name and attributes specified so that 
+--if used as the selected printer's font with SetPrinterFont(), each printed page will hold a number of lines
+--as close as possible to the value specified as desiredlinespp
+global function GetFontLines(sequence fontfamilyname, atom bold, atom italic, atom underlined, atom desiredlinespp)
+    atom ph,stp,lnpp,tmplpp,delta
+    sequence fonts
+
+    ph = GetPageSize(Y_DIM)
+    if ph = 0 then
+        return NULL
+    end if
+    fonts = {}
+    stp = 2
+    tmplpp = 0
+    for t = 6 to 128 by stp do
+        fonts &= NewFont(fontfamilyname,t,bold,italic,underlined)
+        if t >= 48 then stp = 4 end if
+        if t >= 96 then stp = 8 end if
+    end for
+    delta = 0
+    lnpp = fonts[1]
+    for t = 1 to length(fonts) do
+        tmplpp = GetPrinterStringSize("0",fonts[t],Y_DIM)
+        tmplpp = ph/(tmplpp + (tmplpp/4))
+        if (tmplpp < desiredlinespp) then
+            if (desiredlinespp - tmplpp) < delta then
+                lnpp = fonts[t]
+            end if
+            exit
+        else
+            delta = tmplpp - desiredlinespp
+            lnpp = fonts[t]
+        end if
+    end for
+    return lnpp
+end function
+
+
+--Closes the application if the ESCAPE key is pressed or convert the Key Event generated when the ESCAPE key is
+--pressed to a Close Event. This is useful for closing applications whose Windows lack a titlebar or the default
+--"close" button (e.g. the ones created with NoSysWin, NoTitleWin or NoBorderWin styles). To use this procedure
+--place it immediately after WaitEvent() inside your EventLoop() procedure.
+global procedure CloseAppOnEscape(atom setcloseevent)
+    if (Event = Key) and (EventItem = KEY_ESCAPE) then
+        if setcloseevent = False then
+            CloseApp(0)
+        else
+            Event = Close
+            EventItem = 0
+        end if
+    end if
+end procedure

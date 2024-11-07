@@ -1,0 +1,563 @@
+-- The EuWinGUI Library
+-- A small Windows GUI Wrapper for Euphoria
+-- (C)2001-2006 by Andrea Cini.
+-- Based on the original WinGUI Library for C++
+-- (C)2001-2006 by Andrea Cini
+
+--********************************************************************************
+include dll.e
+
+without warning
+
+atom EWG
+
+global atom 
+WinHwnd,
+Event,
+EventOwner,
+EventItem,
+CloseEventEnabled,
+UseTransparentPics,
+PictureHandle,
+WinOnTop,
+WindowType,
+ShowFlag,
+MouseX,
+MouseY,
+Ticks,
+UserTrap,
+FN_DEFAULT,
+FN_FIXED
+
+global constant 
+Click = 1001,
+Move = 1002,
+RClick = 1003,
+Time = 1004,
+Close = 1005,
+HotKey = 1006,
+Restore = 1007,
+Key = 1008,
+DClick = 1009,
+Release = 1010,
+RRelease = 1011,
+Button = 1,
+PictureButton = 2,
+Edit = 3,
+SimEdit = 4,
+MultiEdit = 5,
+SimMultiEdit = 6,
+Text = 7,
+FramedText = 8,
+ClickText = 9,
+Label = 10,
+ClickLabel = 11,
+Group = 12,
+Check = 13,
+SimCheck = 14,
+Radio = 15,
+SimRadio = 16,
+Picture = 17,
+ClickPicture = 18,
+List = 19,
+SortedList = 20,
+SimMultiList = 21,
+PushButton = 22,
+PicturePushButton = 23,
+Dialog = 24,
+SelecList = 25,
+SortedSelecList = 26,
+NoMaxWin = 3001,
+NoMaxMinWin = 3002,
+NoSysWin = 3003,
+NoTitleWin = 3004,
+NoBorderWin = 3005,
+CR_WE = 4001,
+CR_NS = 4002,
+CR_SIZE = 4003,
+CR_VARROW = 4004,
+CR_WAIT = 4005,
+CR_NULL = 4006,
+X_DIM = 5001,
+Y_DIM = 5002, 
+KEY_ENTER = 13, 
+KEY_BACKSPACE = 8, 
+KEY_ESCAPE = 27, 
+KEY_DOWN = 40, 
+KEY_UP = 38, 
+KEY_LEFT = 37, 
+KEY_RIGHT = 39, 
+KEY_CLEAR = 12, 
+KEY_PAUSE = 19, 
+KEY_CAPSLOCK = 20, 
+KEY_PGUP = 33, 
+KEY_PGDN = 34, 
+KEY_END = 35, 
+KEY_HOME = 36, 
+KEY_INS = 45, 
+KEY_DEL = 46,  
+KEY_FUNC01 = 112, 
+True = 1,
+False = 0,
+Save = 2001,
+Open = 2002,
+CL_WHITE = #FFFFFF,
+CL_GRAY = #C0C0C0,
+CL_DKGRAY = #808080,
+CL_BLACK = #000000,
+CL_YELLOW = #00FFFF,
+CL_DKYELLOW = #008080,
+CL_RED = #0000FF,
+CL_DKRED = #000080,
+CL_GREEN =  #00FF00,
+CL_DKGREEN = #008000,
+CL_CYAN =  #FFFF00,
+CL_DKCYAN = #808000,
+CL_BLUE =  #FF0000,
+CL_DKBLUE = #800000,
+CL_PURPLE = #FF00FF,
+CL_DKPURPLE = #800080,
+CL_DEFAULT =  #FFFFFFFF,
+AM = E_ATOM,
+SQ = E_SEQUENCE
+                  
+integer spa,closeapp,waitevent,window,control,infomsg,warnmsg,askmsg,setpos,setdim,settext,setcheck,
+ischecked,loadpic,setico,gettext,setenable,setvisible,listclear,listadd,listdel,listins,listseek,
+getitem,getcount,getindex,listput,filedlg,activate,activatetext,setrefresh,setwintimer,seticon,
+runapp,screenwidth,screenheight,setparentwindow,setfixedfont,setdrawingproc,deleteimage,setlistcwidth,
+setrepainton,getlistitemheight,listindex,listcount,setcur,setdrawingcontrol,drawline,drawpoint,
+drawstring,drawpolygon,setpencolor,setpensize,playsnd,stopsnd,drawmultiline,trapmessage,loadcur,setpicture,
+message,gettrappedmessage,setpic,loadico,getstringsize,newfont,setfont,setdrawingfont,getglobalvars,
+setglobalvars,newmb,setdrawingmb,copymb,copymbtocontrol,getpixelcolor,seteditsel,geteditsel,iskeypressed,
+processevent,iseventwaiting,setcolor,selectprinter,getpagesize,getprinterstringsize,setprinterpencolor,
+setprinterfont,printmb,printstring,newdocument,newpage,startprinting,getselec,setexpp
+
+
+procedure infail(sequence name)
+integer k
+puts(1, "The EuWinGUI Library\n")
+puts(1, "(C)2001-2006 by Andrea Cini.\n\n")
+puts(1, "ERROR: Unable to initialize " & name & "!\n\nPress any key to abort...\n")
+while 1 do
+k = get_key()
+if k != -1 then
+abort(1)
+end if
+end while
+end procedure	 
+function indll(sequence file_name)
+atom res
+res = machine_func(50, file_name)
+if res = NULL then infail(file_name) end if
+return res
+end function
+function infunc(atom dll, sequence name, sequence args, atom result)
+integer handle
+handle = machine_func(51, {dll, name, args, result})
+if handle = -1 then
+infail(name)
+else
+return handle
+end if
+end function
+function inproc(atom dll, sequence name, sequence args)
+integer handle
+handle = machine_func(51, {dll, name, args, 0})
+if handle = -1 then
+infail(name)
+else
+return handle
+end if
+end function
+procedure link()
+EWG = indll("EuWinGUI.DLL")
+closeapp = inproc(EWG,"CloseApp",{AM})
+waitevent = inproc(EWG,"WaitEvent",{})
+window = inproc(EWG,"Window",{SQ,AM,AM,AM,AM})
+control = infunc(EWG,"Control",{AM,SQ,AM,AM,AM,AM},AM)  
+infomsg = inproc(EWG,"InfoMsg",{SQ,SQ})   
+warnmsg = inproc(EWG,"WarnMsg",{SQ,SQ})    
+askmsg = infunc(EWG,"AskMsg",{SQ,SQ},AM)
+setpos = inproc(EWG,"SetPos",{AM,AM,AM})  
+setdim = inproc(EWG,"SetDim",{AM,AM,AM})  
+settext = inproc(EWG,"SetText",{AM,SQ})   
+setcheck = inproc(EWG,"SetCheck",{AM,AM})    
+ischecked = infunc(EWG,"IsChecked",{AM},AM)    
+loadpic = infunc(EWG,"LoadPic",{SQ},AM)    
+setpic = inproc(EWG,"SetPic",{AM,AM,AM})    
+setpicture = inproc(EWG,"SetPicture",{AM,AM,SQ})      
+loadico = infunc(EWG,"LoadIco",{SQ},AM)      
+setico = inproc(EWG,"SetIco",{AM})      
+seticon = inproc(EWG,"SetIcon",{SQ})        
+gettext = infunc(EWG,"GetText",{AM},SQ)    
+setenable = inproc(EWG,"SetEnable",{AM,AM})      
+setvisible = inproc(EWG,"SetVisible",{AM,AM})     
+listclear = inproc(EWG,"ListClear",{AM})   
+listadd = inproc(EWG,"ListAdd",{AM,SQ})        
+listdel = inproc(EWG,"ListDel",{AM})     
+listins = inproc(EWG,"ListIns",{AM,SQ})     
+listseek = inproc(EWG,"ListSeek",{AM,AM})   
+getitem = infunc(EWG,"GetItem",{AM},SQ)     
+getcount = infunc(EWG,"GetCount",{AM},AM)   
+getindex = infunc(EWG,"GetIndex",{AM},AM)    
+listput = inproc(EWG,"ListPut",{AM,SQ})   
+filedlg = infunc(EWG,"FileDlg",{AM,SQ,SQ},SQ)       
+activate = inproc(EWG,"Activate",{AM})       
+activatetext = inproc(EWG,"ActivateText",{AM})          
+setrefresh = inproc(EWG,"SetRefresh",{AM})          
+setwintimer = inproc(EWG,"SetWinTimer",{AM})
+runapp = inproc(EWG,"RunApp",{SQ,SQ})
+screenwidth = infunc(EWG,"ScreenWidth",{},AM)
+screenheight = infunc(EWG,"ScreenHeight",{},AM)
+setparentwindow = inproc(EWG,"SetParentWindow",{AM})  
+setfixedfont = inproc(EWG,"SetFixedFont",{AM})  
+setdrawingproc = inproc(EWG,"SetDrawingProc",{AM,AM}) 
+deleteimage = inproc(EWG,"DeleteImage",{AM}) 
+setlistcwidth = inproc(EWG,"SetListCWidth",{AM,AM}) 
+setrepainton = inproc(EWG,"SetRepaintOn",{AM,AM}) 
+getlistitemheight = infunc(EWG,"GetListItemHeight",{AM},AM)
+setcur = inproc(EWG,"SetCur",{AM}) 
+setdrawingcontrol = inproc(EWG,"SetDrawingControl",{AM}) 
+drawline = inproc(EWG,"DrawLine",{AM,AM,AM,AM}) 
+drawpoint = inproc(EWG,"DrawPoint",{AM,AM})
+drawstring = inproc(EWG,"DrawString",{AM,AM,SQ})
+drawpolygon = inproc(EWG,"DrawPolygon",{SQ,AM})
+setpencolor = inproc(EWG,"SetPenColor",{AM}) 
+setpensize = inproc(EWG,"SetPenSize",{AM}) 
+playsnd = inproc(EWG,"PlaySnd",{SQ}) 
+stopsnd = inproc(EWG,"StopSnd",{}) 
+drawmultiline = inproc(EWG,"DrawMultiLine",{SQ}) 
+trapmessage = inproc(EWG,"TrapMessage",{AM}) 
+loadcur = infunc(EWG,"LoadCur",{SQ},AM) 
+message = infunc(EWG,"Message",{AM,AM,AM,AM,AM},AM) 
+gettrappedmessage = infunc(EWG,"GetTrappedMessage",{},SQ) 
+getglobalvars = infunc(EWG,"GetGlobalVars",{},SQ)
+setglobalvars = inproc(EWG,"SetGlobalVars",{SQ}) 
+getstringsize = infunc(EWG,"GetStringSize",{AM,SQ,AM,AM},AM) 
+newfont = infunc(EWG,"NewFont",{SQ,AM,AM,AM,AM},AM)
+setfont = inproc(EWG,"SetFont",{AM,AM}) 
+setdrawingfont = inproc(EWG,"SetDrawingFont",{AM}) 
+newmb = infunc(EWG,"NewMB",{AM,AM},AM)
+setdrawingmb = inproc(EWG,"SetDrawingMB",{AM})
+copymb = inproc(EWG,"CopyMB",{AM,AM,AM,AM,AM,AM,AM,AM}) 
+copymbtocontrol = inproc(EWG,"CopyMBToControl",{AM,AM,AM,AM,AM,AM,AM,AM})
+getpixelcolor = infunc(EWG,"GetPixelColor",{AM,AM},AM)
+seteditsel = inproc(EWG,"SetEditSel",{AM,AM,AM})
+geteditsel = infunc(EWG,"GetEditSel",{AM},SQ)
+iskeypressed = infunc(EWG,"IsKeyPressed",{AM},AM)
+processevent = inproc(EWG,"ProcessEvent",{})
+iseventwaiting = infunc(EWG,"IsEventWaiting",{},AM)
+setcolor = inproc(EWG,"SetColor",{AM,AM,AM})
+selectprinter = inproc(EWG,"SelectPrinter",{AM})
+getpagesize = infunc(EWG,"GetPageSize",{AM},AM)
+getprinterstringsize = infunc(EWG,"GetPrinterStringSize",{SQ,AM,AM},AM)
+setprinterpencolor = inproc(EWG,"SetPrinterPenColor",{AM})
+setprinterfont = inproc(EWG,"SetPrinterFont",{AM})
+printmb = inproc(EWG,"PrintMB",{AM,AM,AM,AM,AM})
+printstring = inproc(EWG,"PrintString",{AM,AM,SQ})
+newdocument = inproc(EWG,"NewDocument",{SQ})
+newpage = inproc(EWG,"NewPage",{})
+startprinting = inproc(EWG,"StartPrinting",{})
+getselec = infunc(EWG,"GetSelec",{AM},SQ)
+setexpp = inproc(EWG,"SetExPP",{AM})        
+end procedure
+link()
+function execpp(object rid)
+call_proc(rid,{})
+return 0
+end function
+c_proc(setexpp,{call_back(routine_id("execpp"))})
+procedure ggv()
+sequence vars
+vars = c_func(getglobalvars,{})
+WinHwnd = vars[1]
+Event = vars[2]
+EventOwner = vars[3]
+EventItem = vars[4]
+CloseEventEnabled = vars[5]
+UseTransparentPics = vars[6]
+PictureHandle = vars[7]
+WinOnTop = vars[8]
+WindowType = vars[9]
+ShowFlag = vars[10]
+MouseX = vars[11]
+MouseY = vars[12]
+Ticks = vars[13]
+UserTrap = vars[14]
+FN_DEFAULT = vars[15]
+FN_FIXED = vars[16]
+end procedure
+ggv()
+procedure sgv()
+c_proc(setglobalvars,{{CloseEventEnabled,
+UseTransparentPics,WinOnTop,WindowType,ShowFlag,EWG}})
+end procedure
+global procedure CloseApp(atom exitflag)
+c_proc(closeapp,{exitflag})
+end procedure
+global procedure WaitEvent()
+c_proc(waitevent,{})
+ggv()
+end procedure
+global procedure Window(sequence caption, atom posx, atom posy, atom dimx, atom dimy)
+sgv()
+c_proc(window,{caption,posx,posy,dimx,dimy})
+ggv()
+end procedure
+global function Control(atom controltype, sequence caption, atom posx, atom posy, atom dimx, atom dimy)
+sgv()
+return c_func(control,{controltype,caption,posx,posy,dimx,dimy})
+end function
+global procedure InfoMsg(sequence message, sequence title)
+c_proc(infomsg,{message,title})
+end procedure
+global procedure WarnMsg(sequence message, sequence title)
+c_proc(warnmsg,{message,title})
+end procedure
+global function AskMsg(sequence message, sequence title)
+return c_func(askmsg,{message,title})
+end function
+global procedure SetPos(atom ctrl, atom posx, atom posy)
+c_proc(setpos,{ctrl,posx,posy})
+end procedure
+global procedure SetDim(atom ctrl, atom dimx, atom dimy)
+c_proc(setdim,{ctrl,dimx,dimy})
+end procedure
+global procedure SetText(atom ctrl, sequence caption)
+c_proc(settext,{ctrl,caption})
+end procedure
+global procedure SetCheck(atom ctrl, atom flag)
+c_proc(setcheck,{ctrl,flag})
+end procedure
+global function IsChecked(atom ctrl)
+return c_func(ischecked,{ctrl})
+end function
+global function LoadPic(sequence imagepath)
+atom res
+sgv()
+res = c_func(loadpic,{imagepath})
+ggv()
+return res
+end function
+global function LoadIco(sequence imagepath)
+return c_func(loadico,{imagepath})
+end function
+global procedure SetPic(atom ctrl, atom ctrltype, atom imagehandle)
+c_proc(setpic,{ctrl,ctrltype,imagehandle})
+end procedure
+global procedure SetIco(atom imagehandle)
+c_proc(setico,{imagehandle})
+end procedure
+global function GetText(atom ctrl)
+return c_func(gettext,{ctrl})
+end function
+global procedure SetEnable(atom ctrl, atom flag)
+c_proc(setenable,{ctrl,flag})
+end procedure
+global procedure SetVisible(atom ctrl, atom flag)
+c_proc(setvisible,{ctrl,flag})
+end procedure
+global procedure ListClear(atom ctrl)
+c_proc(listclear,{ctrl})
+end procedure
+global procedure ListAdd(atom ctrl, sequence item)
+c_proc(listadd,{ctrl,item})
+end procedure
+global procedure ListDel(atom ctrl)
+c_proc(listdel,{ctrl})
+end procedure
+global procedure ListIns(atom ctrl, sequence item)
+c_proc(listins,{ctrl,item})
+end procedure
+global procedure ListSeek(atom ctrl, atom pos)
+c_proc(listseek,{ctrl,pos})
+end procedure
+global function GetItem(atom ctrl)
+return c_func(getitem,{ctrl})
+end function
+global function GetCount(atom ctrl)
+return c_func(getcount,{ctrl})
+end function
+global function GetIndex(atom ctrl)
+return c_func(getindex,{ctrl})
+end function
+global procedure ListPut(atom ctrl, sequence item)
+c_proc(listput,{ctrl,item})
+end procedure
+global function FileDlg(atom dlgtype, sequence filename, sequence filter)
+return c_func(filedlg,{dlgtype,filename,filter})
+end function
+global procedure Activate(atom ctrl)
+c_proc(activate,{ctrl})
+end procedure
+global procedure ActivateText(atom ctrl)
+c_proc(activatetext,{ctrl})
+end procedure
+global procedure SetRefresh(atom ctrl)
+c_proc(setrefresh,{ctrl})
+end procedure
+global procedure SetWinTimer(atom interval)
+c_proc(setwintimer,{interval})
+end procedure
+global procedure RunApp(sequence program, sequence parameters)
+c_proc(runapp,{program,parameters})
+end procedure
+global function ScreenWidth()
+return c_func(screenwidth,{})
+end function
+global function ScreenHeight()
+return c_func(screenheight,{})
+end function
+global procedure SetParentWindow(atom ctrl)
+c_proc(setparentwindow,{ctrl})
+end procedure
+global procedure SetFixedFont(atom ctrl)
+c_proc(setfixedfont,{ctrl})
+end procedure
+global procedure SetDrawingProc(atom ctrl, object drawingprocedure)
+c_proc(setdrawingproc,{ctrl,drawingprocedure})
+end procedure
+global procedure DeleteImage(atom imagehandle)
+c_proc(deleteimage,{imagehandle})
+end procedure
+global procedure SetListCWidth(atom ctrl, atom wid)
+c_proc(setlistcwidth,{ctrl,wid})
+end procedure
+global procedure SetRepaintOn(atom ctrl, atom flag)
+c_proc(setrepainton,{ctrl,flag})
+end procedure
+global function GetListItemHeight(atom ctrl)
+return c_func(getlistitemheight,{ctrl})
+end function
+global procedure SetCur(atom cursor)
+c_proc(setcur,{cursor})
+end procedure
+global procedure SetDrawingControl(atom ctrl)
+c_proc(setdrawingcontrol,{ctrl})
+end procedure
+global procedure DrawLine(atom sx, atom sy, atom fx, atom fy)
+c_proc(drawline,{sx,sy,fx,fy})
+end procedure
+global procedure DrawPoint(atom sx, atom sy)
+c_proc(drawpoint,{sx,sy})
+end procedure
+global procedure DrawString(atom sx, atom sy, sequence txt)
+c_proc(drawstring,{sx,sy,txt})
+end procedure
+global procedure DrawPolygon(sequence points, atom fillflag)
+c_proc(drawpolygon,{points,fillflag})
+end procedure
+global procedure SetPenColor(atom color)
+c_proc(setpencolor,{color})
+end procedure
+global procedure SetPenSize(atom size)
+c_proc(setpensize,{size})
+end procedure
+global procedure PlaySnd(sequence soundfile)
+c_proc(playsnd,{soundfile})
+end procedure
+global procedure StopSnd()
+c_proc(stopsnd,{})
+end procedure
+global procedure DrawMultiLine(sequence linepoints)
+c_proc(drawmultiline,{linepoints})
+end procedure
+global procedure TrapMessage(atom imsg)
+c_proc(trapmessage,{imsg})
+end procedure
+global function LoadCur(sequence imagepath)
+return c_func(loadcur,{imagepath})
+end function
+global function Message(atom hwnd, atom iMsg, atom wParam, atom lParam, atom delayflag)
+return c_func(message,{hwnd,iMsg,wParam,lParam,delayflag})
+end function
+global function GetTrappedMessage()
+return c_func(gettrappedmessage,{})
+end function
+global procedure SetIcon(sequence imagepath)
+c_proc(seticon,{imagepath})
+end procedure
+global procedure SetPicture(atom ctrl, atom ctrltype, sequence imagepath)
+sgv()
+c_proc(setpicture,{ctrl,ctrltype,imagepath})
+ggv()
+end procedure
+global function GetStringSize(atom ctrl, sequence string, atom font, atom dim)
+return c_func(getstringsize,{ctrl,string,font,dim})
+end function
+global function NewFont(sequence fontname, atom size, atom bold, atom italic, atom underlined)
+return c_func(newfont,{fontname,size,bold,italic,underlined})
+end function
+global procedure SetFont(atom ctrl, atom font)
+c_proc(setfont,{ctrl,font})
+end procedure
+global procedure SetDrawingFont(atom font)
+c_proc(setdrawingfont,{font})
+end procedure
+global function NewMB(atom wid, atom hei)
+return c_func(newmb,{wid,hei})
+end function
+global procedure SetDrawingMB(atom mb)
+c_proc(setdrawingmb,{mb})
+end procedure
+global procedure CopyMB(atom smb, atom  xpos, atom  ypos, atom  wid, atom  hei,atom  dmb, atom  desx, atom  desy)
+c_proc(copymb,{smb,xpos,ypos,wid,hei,dmb,desx,desy})
+end procedure
+global procedure CopyMBToControl(atom smb, atom  xpos, atom  ypos, atom  wid, atom  hei, atom  ctrl, atom  desx, atom  desy)
+c_proc(copymbtocontrol,{smb,xpos,ypos,wid,hei,ctrl,desx,desy})
+end procedure
+global function GetPixelColor(atom  xpos, atom  ypos)
+return c_func(getpixelcolor,{xpos,ypos})
+end function
+global procedure SetEditSel(atom ctrl, atom ssel, atom esel)
+c_proc(seteditsel,{ctrl,ssel,esel})
+end procedure
+global function GetEditSel(atom ctrl)
+return c_func(geteditsel,{ctrl})
+end function
+global function IsKeyPressed(atom kc)
+return c_func(iskeypressed,{kc})
+end function
+global procedure ProcessEvent()
+c_proc(processevent,{})
+ggv()
+end procedure
+global function IsEventWaiting()
+return c_func(iseventwaiting,{})
+end function
+global procedure SetColor(atom ctrl, atom tc, atom bc)
+c_proc(setcolor,{ctrl,tc,bc})
+end procedure
+global procedure SelectPrinter(atom udef)
+c_proc(selectprinter,{udef})
+end procedure
+global function GetPageSize(atom rdim)
+return c_func(getpagesize,{rdim})
+end function
+global function GetPrinterStringSize(sequence strg, atom ft, atom rdim)
+return c_func(getprinterstringsize,{strg,ft,rdim})
+end function
+global procedure SetPrinterPenColor(atom clr)
+c_proc(setprinterpencolor,{clr})
+end procedure
+global procedure SetPrinterFont(atom ft)
+c_proc(setprinterfont,{ft})
+end procedure
+global procedure PrintMB(atom mb, atom  xp, atom  yp, atom mbw, atom mbh)
+c_proc(printmb,{mb,xp,yp,mbw,mbh})
+end procedure
+global procedure PrintString(atom sx, atom sy, sequence strg)
+c_proc(printstring,{sx,sy,strg})
+end procedure
+global procedure NewDocument(sequence dn)
+c_proc(newdocument,{dn})
+end procedure
+global procedure NewPage()
+c_proc(newpage,{})
+end procedure
+global procedure StartPrinting()
+c_proc(startprinting,{})
+end procedure
+global function GetSelec(atom ctrl)
+return c_func(getselec,{ctrl})
+end function
