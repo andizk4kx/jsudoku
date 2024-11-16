@@ -515,7 +515,7 @@ procedure retrieve(sequence fileName)
         m = seek(f, -1)                 -- go to end of file
         n = where(f)                    -- number of bytes in file
         p = floor(n/81)
-        if n < 81 or not integer(p) then
+        if n < 81 or not integer(n/81) then
             notify("Insufficient or corrupted data in the input file...")
             PlaySnd("ding.wav")
         else
