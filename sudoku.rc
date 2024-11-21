@@ -1,0 +1,41 @@
+#include <winver.h>
+
+ICONA	  ICON			.\sudoku.ico
+
+1 24 manifest.xml
+
+
+//-- version info (shown in file properties)
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 0, 0, 1, 0
+PRODUCTVERSION 0, 0, 1, 0
+FILEOS VOS__WINDOWS32
+FILETYPE VFT_APP
+// FILETYPE VFT_DLL
+
+BEGIN
+   BLOCK "VarFileInfo"
+   BEGIN
+      VALUE "Translation", 0x409, 1252  // Englisch (USA), Windows/Multilingual
+//    VALUE "Translation", 0x407, 1252  // German,         Windows/Multilingual
+   END
+
+   BLOCK "StringFileInfo"
+   BEGIN
+      BLOCK "040904E4"                  // Englisch (USA), Windows/Multilingual
+//    BLOCK "040704E4"                  // German,         Windows/Multilingual
+      BEGIN
+         VALUE "FileVersion",      "\0"
+         VALUE "FileDescription",  "Sudoku from Jiri Babor\0"
+         VALUE "LegalCopyright",   "\0"
+
+         VALUE "ProductVersion",   "\0"
+         VALUE "ProductName",      "Jiri's Sudoku\0"
+         VALUE "OriginalFilename", "sudoku.exe\0"
+         VALUE "InternalName",     "sudoku\0"
+         VALUE "CompanyName",      "\0"
+         VALUE "Comments",         "Original from j.babor@gmail.com\0"
+      END
+   END
+END
+­2.2

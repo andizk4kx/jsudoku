@@ -4,9 +4,18 @@
 --  16-01-2007
 
 include ewguties.ew
-include get.e
-include file.e
-include misc.e
+--include get.e
+--include file.e
+--include misc.e
+
+function is_compiled()
+sequence s = command_line()
+    if equal(s[1],s[2]) then
+        return true
+    else
+        return false
+    end if
+end function
 
 constant ORANGE = #3080FF
 constant verdana11 = NewFont("verdana", 10, False, False, False)
@@ -14,7 +23,7 @@ constant verdana11b = NewFont("verdana", 11, True, False, False)
 constant verdana28 = NewFont("verdana", 28, False, False, False)
 constant verdana64 = NewFont("verdana", 64, True, False, False)
 
-CenterWindow("jiri's sudoku"&sprintf(" %d bit",machine_bits()), 528, 508, NoMaxWin)
+CenterWindow("jiri's sudoku "&m_bits(), 528, 508, NoMaxWin)
 
 constant easyButton = Control(Button, "easy", 442, 4, 76, 34)
 constant moderateButton = Control(Button, "moderate", 442, 40, 76, 34)
@@ -583,7 +592,13 @@ end procedure -- printPuzzle
 SetWinTimer(1000)
 message = "Let's play sudoku..."
 SetDrawingProc(WinHwnd, routine_id("redraw"))
-SetIcon("sudoku.ico")
+
+if is_compiled() then
+    SetIconFR("ICONA")
+else
+    SetIcon("sudoku.ico")
+end if
+
 initRun()
 
 while WaitEvent() do                            -- event loop
